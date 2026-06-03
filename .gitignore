@@ -9,3 +9,11 @@ wheels/
 # Virtual environments
 .venv
 .env
+
+# Local/editor files
+.idea/
+.vscode/
+*.iml
+
+# Flutter client is a separate project and should not be uploaded here
+lyzndown_app/

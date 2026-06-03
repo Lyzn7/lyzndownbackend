@@ -1,0 +1,13 @@
+.git
+.sixth
+.venv
+.env
+__pycache__
+*.pyc
+
+lyzndown_app/.dart_tool
+lyzndown_app/build
+lyzndown_app/android/.gradle
+lyzndown_app/.idea
+
+demo.gif
