@@ -1,7 +1,9 @@
+import base64
 import os
 import uuid
 import re
 import tempfile
+import unicodedata
 from urllib.parse import quote
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import StreamingResponse
@@ -16,6 +18,7 @@ load_dotenv()
 
 allowed_origin = os.getenv("ALLOWED_ORIGIN", "*")
 allowed_origins = ["*"] if allowed_origin == "*" else [allowed_origin]
+_cookies_file_path = None
 
 # CORS configuration
 app.add_middleware(CORSMiddleware,
@@ -24,6 +27,25 @@ app.add_middleware(CORSMiddleware,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def cookies_file_path() -> str | None:
+    global _cookies_file_path
+
+    configured_path = os.getenv("YTDLP_COOKIES_PATH")
+    if configured_path:
+        return configured_path
+
+    cookies_b64 = os.getenv("YTDLP_COOKIES_B64")
+    if not cookies_b64:
+        return None
+
+    if _cookies_file_path:
+        return _cookies_file_path
+
+    _cookies_file_path = os.path.join(tempfile.gettempdir(), "yt-dlp-cookies.txt")
+    with open(_cookies_file_path, "wb") as file:
+        file.write(base64.b64decode(cookies_b64))
+    return _cookies_file_path
 
 def clean_url(url: str) -> str:
     return url.strip()
@@ -50,12 +72,21 @@ def info_options(url: str) -> dict:
     headers = request_headers(url)
     if headers:
         options["http_headers"] = headers
+    cookie_file = cookies_file_path()
+    if cookie_file:
+        options["cookiefile"] = cookie_file
     return options
 
 def safe_title(title: str | None) -> str:
     cleaned = re.sub(r"[^\w\s\-._]", "", title or "video", flags=re.UNICODE)
     cleaned = cleaned.replace("/", "-").replace("\\", "-").strip()
     return cleaned or "video"
+
+def ascii_filename(filename: str) -> str:
+    normalized = unicodedata.normalize("NFKD", filename)
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+    ascii_only = re.sub(r'[^A-Za-z0-9 ._\-()]', "", ascii_only).strip()
+    return ascii_only or "download"
 
 def download_options(url: str, output_template: str, media_type: str, format_id: str) -> dict:
     headers = request_headers(url)
@@ -73,6 +104,9 @@ def download_options(url: str, output_template: str, media_type: str, format_id:
     if headers:
         options["http_headers"] = headers
         options["extractor_args"] = {"tiktok": {"api": "mobile"}}
+    cookie_file = cookies_file_path()
+    if cookie_file:
+        options["cookiefile"] = cookie_file
 
     if media_type == "mp3":
         options["format"] = "bestaudio/best"
@@ -167,12 +201,16 @@ async def download_video(
 
         # URL-encode filename for proper handling
         safe_filename = quote(filename, safe='.-_')
+        fallback_filename = ascii_filename(filename)
         
         return StreamingResponse(
             iterfile(),
             media_type="application/octet-stream",
             headers={
-                "Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}; filename=\"{filename}\""
+                "Content-Disposition": (
+                    f"attachment; filename=\"{fallback_filename}\"; "
+                    f"filename*=UTF-8''{safe_filename}"
+                )
             }
         )
 
@@ -189,4 +227,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8001")))

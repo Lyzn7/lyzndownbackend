@@ -7,7 +7,7 @@ Project Flutter ada di folder `lyzndown_app`. Backend FastAPI tetap di root proj
 Jalankan backend lokal:
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 Endpoint utama:
@@ -46,6 +46,27 @@ Langkah deploy:
 ```text
 ALLOWED_ORIGIN=*
 ```
+
+Jika YouTube menampilkan error `Sign in to confirm you're not a bot`, tambahkan cookies YouTube untuk `yt-dlp`.
+
+Cara paling aman untuk Railway:
+
+1. Export cookies YouTube dalam format Netscape/Mozilla `cookies.txt`.
+2. Jangan commit `cookies.txt` ke GitHub.
+3. Encode file cookies ke base64 dari PowerShell:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("cookies.txt"))
+```
+
+4. Salin hasil base64.
+5. Di Railway `Variables`, tambahkan:
+
+```text
+YTDLP_COOKIES_B64=<hasil_base64_cookies_txt>
+```
+
+6. Redeploy service Railway.
 
 8. Buka `Settings` lalu `Networking`.
 9. Klik `Generate Domain`.
@@ -88,7 +109,7 @@ flutter run
 Default API di app adalah:
 
 ```text
-http://10.0.2.2:8000
+http://10.0.2.2:8001
 ```
 
 Run app dengan backend Railway:
